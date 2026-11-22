@@ -1,0 +1,37 @@
+{
+  "manifest_version": 1,
+  "protocol_version": 1,
+  "id": "sockseek",
+  "version": "1.0.6",
+  "architectures": [
+    "amd64"
+  ],
+  "server_versions": [
+    "1.5.0",
+    "1.5.1",
+    "1.5.2",
+    "1.5.3"
+  ],
+  "sources": {
+    "search": [
+      "soulseek"
+    ],
+    "fetch": [
+      "soulseek"
+    ]
+  },
+  "settings": [
+    {
+      "key": "username",
+      "label": "Account name",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "password",
+      "label": "Account password",
+      "type": "secret",
+      "required": true
+    }
+  ]
+}

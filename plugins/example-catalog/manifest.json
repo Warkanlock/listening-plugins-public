@@ -1,0 +1,32 @@
+{
+  "manifest_version": 1,
+  "protocol_version": 1,
+  "id": "example-catalog",
+  "version": "1.0.3",
+  "architectures": [
+    "amd64",
+    "arm64"
+  ],
+  "server_versions": [
+    "1.5.0",
+    "1.5.1",
+    "1.5.2",
+    "1.5.3"
+  ],
+  "sources": {
+    "search": [
+      "example-catalog"
+    ],
+    "fetch": [
+      "example-catalog"
+    ]
+  },
+  "settings": [
+    {
+      "key": "catalog_url",
+      "label": "Catalog URL",
+      "type": "text",
+      "required": true
+    }
+  ]
+}

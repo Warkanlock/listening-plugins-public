@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from listening_plugin.runtime import main
+
+main()
