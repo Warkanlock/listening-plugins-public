@@ -105,8 +105,10 @@ class AcquisitionTests(unittest.TestCase):
         binary = self.root / "fixture"
         binary.write_text(f"#!{sys.executable}\n" + """
 from pathlib import Path
+import json
 import sys
 root = Path(__file__).parent
+assert '--progress-json' in sys.argv
 config = Path(sys.argv[sys.argv.index('--config')+1])
 text = config.read_text()
 assert 'password = "new"' in text
@@ -114,20 +116,27 @@ assert 'login = fixture;old' in text
 assert str(root / 'sockseek.log') in text
 assert config.stat().st_mode & 0o777 == 0o600
 (root / 'observed').write_text(str(config))
+mode = (root / 'mode').read_text()
+if mode in ('NoSearchResults', 'NoMatchingResults', 'Other'):
+    print(json.dumps({'type': 'track_state', 'data': {'terminalOutcome': 'Failed', 'failureReason': mode}}))
 print('[]')
-sys.exit(1 if (root/'fail').exists() else 0)
+sys.exit(0 if mode == 'normal' else 1)
 """)
         binary.chmod(0o700)
         strategy = worker("sockseek", self.root, str(binary))
         session_module = module("sockseek", "session")
         session = session_module.Session(str(binary), self.root, self.root / "session")
-        for success in (True, False):
-            if not success:
-                (self.root / "fail").touch()
-            with self.subTest(success=success), patch.object(
+        for mode in ("normal", "NoSearchResults", "NoMatchingResults", "Other", "missing_outcome"):
+            (self.root / "mode").write_text(mode)
+            with self.subTest(mode=mode), patch.object(
                     module("sockseek", "provider"), "Session", return_value=session), patch.object(
                     session_module, "has_container_init", return_value=False):
-                self.assertEqual(request(strategy, "search", recording=self.record)["ok"], success)
+                result = request(strategy, "search", recording=self.record)
+                if mode in ("Other", "missing_outcome"):
+                    self.assertFalse(result["ok"])
+                    self.assertTrue(result["retryable"])
+                else:
+                    self.assertEqual(result, {"ok": True, "candidates": [], "version": 1})
                 observed = self.root / "observed"
                 self.assertFalse(Path(observed.read_text()).exists())
                 observed.unlink()

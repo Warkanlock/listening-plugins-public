@@ -22,6 +22,31 @@ def invoke(command, **options):
         raise CompletedTimeout from error
 
 
+def search_results(process):
+    results = None
+    failure_reason = None
+    for line in process.stdout.splitlines():
+        if not line.strip():
+            continue
+        entry = json.loads(line)
+        if isinstance(entry, list):
+            if results is not None:
+                raise RuntimeError("Sockseek returned more than one search result.")
+            results = entry
+        elif isinstance(entry, dict) and entry.get("type") == "track_state":
+            state = entry.get("data", {})
+            if state.get("terminalOutcome") == "Failed":
+                failure_reason = state.get("failureReason")
+    # An empty array and exit 1 also accompany real failures. Only the
+    # terminal track event can confirm that the search found no matches.
+    if results is None or (process.returncode and not (
+        process.returncode == 1 and results == []
+        and failure_reason in ("NoSearchResults", "NoMatchingResults")
+    )):
+        raise RuntimeError("Sockseek search failed.")
+    return results
+
+
 class Provider:
     def __init__(self, context, binary=BINARY):
         self.credentials = context.credentials
@@ -50,13 +75,11 @@ class Provider:
         if not query or query.startswith("-"):
             return ()
         process = self.run(
-            query, ["--print", "json-all", "--format", ",".join(formats),
+            query, ["--progress-json", "--print", "json-all", "--format", ",".join(formats),
              "--pref-format", preferred, "--input-type", "string", "--song",
              "--search-timeout", "6000"], capture_output=True, text=True, timeout=22,
         )
-        if process.returncode:
-            raise RuntimeError("Sockseek search failed.")
-        return (Candidate(SOURCE, link) for link in ranked_links(json.loads(process.stdout), formats, preferred))
+        return (Candidate(SOURCE, link) for link in ranked_links(search_results(process), formats, preferred))
 
     def fetch(self, candidate, directory):
         link = candidate.id
