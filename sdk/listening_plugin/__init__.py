@@ -1,3 +1,3 @@
 """Listening plugin SDK."""
-from .contract import (Candidate, CompletedTimeout, ConfigurationError, FetchPlugin, LoginUnavailable,
+from .contract import (Candidate, CompletedTimeout, ConfigurationError, FetchPlugin, ListingPlugin, LoginUnavailable,
                        PluginContext, ReadyPlugin, Recording, SearchPlugin, Unavailable)

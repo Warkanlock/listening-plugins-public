@@ -28,10 +28,12 @@ Export a class named `Provider`. It receives a [PluginContext](sdk/listening_plu
 | Method | What the room sends | What the provider returns |
 | --- | --- | --- |
 | `test()` | A context with access to the plugin’s settings | Return normally when configured and ready, or raise a credential-free configuration error. |
-| `search(recording)` | Artist, title, album, duration and requested formats | Ranked `Candidate(source, id)` objects. Keep the IDs stable across releases. |
+| `list(recording)` | Artist, title, album, duration and requested formats | An iterable of ranked `Candidate(source, id)` objects, best match first. Keep IDs opaque and stable across releases. |
 | `fetch(candidate, staging)` | A supported candidate and an empty staging directory | Write one audio file there and return its basename. Listening verifies and stores the audio. |
 
 Read managed settings using `context.settings()`. Declare secret fields in the manifest and set their values in the room. Preserve the plugin ID, setting keys and source names when upgrading a published plugin. The shared SDK handles protocol v1, candidate limits and error responses. Report a completed timeout only after the operation has stopped and released its resources.
+
+The SDK exposes `list()` through the existing `search` capability and still accepts providers that implement `search(recording)`. Set `label` to a public display name and optionally include `format`, `duration` in seconds and `bitrate` in kbps. Use `recommended=False` for uncertain matches such as a live take of a studio recording. Listening can show these in Browse copies and skips them when automatically choosing a copy for an individual request. Selected copies go through the same audio verification. Keep credentials, private paths and peer handles out of display labels.
 
 The [example catalog](plugins/example-catalog/provider.py) uses the default Python image recipe. [Sockseek](plugins/sockseek/provider.py) keeps its native binary recipe, upstream pin and license under its own `build/` directory. New providers using the default runtime need only their manifest and provider.
 

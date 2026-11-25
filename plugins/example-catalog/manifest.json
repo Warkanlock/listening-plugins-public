@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "protocol_version": 1,
   "id": "example-catalog",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "architectures": [
     "amd64",
     "arm64"
@@ -21,7 +21,10 @@
     "1.5.10",
     "1.5.11",
     "1.5.12",
-    "1.5.13"
+    "1.5.13",
+    "1.5.14",
+    "1.5.15",
+    "1.5.16"
   ],
   "sources": {
     "search": [
