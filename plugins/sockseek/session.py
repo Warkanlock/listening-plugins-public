@@ -19,8 +19,11 @@ ADDRESS = "http://127.0.0.1:5030"
 LOGIN_BACKOFF = 30 * 60
 
 
-def api(path, method="GET"):
-    conn = http.client.HTTPConnection("127.0.0.1", 5030, timeout=1)
+def api(path, method="GET", *, deadline=None):
+    timeout = 1 if deadline is None else min(1, deadline - time.monotonic())
+    if timeout <= 0:
+        raise TimeoutError
+    conn = http.client.HTTPConnection("127.0.0.1", 5030, timeout=timeout)
     try:
         conn.request(method, "/api/" + path)
         reply = conn.getresponse()
@@ -46,6 +49,14 @@ def process_start(pid):
         return None if fields[0] == "Z" else fields[19]
     except FileNotFoundError:
         return None
+
+
+def bound_command_timeout(arguments, deadline):
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CompletedTimeout
+        arguments["timeout"] = min(arguments["timeout"], remaining)
 
 
 class Session:
@@ -137,16 +148,18 @@ class Session:
 
     def abort(self, state):
         connected = False
+        # Leave time to stop and reap the daemon if the remote cancellation
+        # cannot be confirmed within this shared budget.
+        deadline = time.monotonic() + 2.5
         try:
-            connected = api("server/status")["soulseekClient"]["isReady"]
+            connected = api("server/status", deadline=deadline)["soulseekClient"]["isReady"]
             if connected:
-                for workflow in api("workflows"):
+                for workflow in api("workflows", deadline=deadline):
                     if workflow["activeJobCount"]:
                         identity = UUID(workflow["workflowId"])
-                        api(f"workflows/{identity}/cancel", "POST")
-                deadline = time.monotonic() + 2
+                        api(f"workflows/{identity}/cancel", "POST", deadline=deadline)
                 while time.monotonic() < deadline:
-                    if not api("server/status")["activeJobCount"]:
+                    if not api("server/status", deadline=deadline)["activeJobCount"]:
                         return
                     time.sleep(.1)
         except (OSError, ValueError, KeyError, http.client.HTTPException):
@@ -156,13 +169,14 @@ class Session:
             self.save({"config": state["config"], "retry_at": time.monotonic() + LOGIN_BACKOFF})
             raise LoginUnavailable(retry_after_seconds=LOGIN_BACKOFF)
 
-    def run_foreground(self, query, options, arguments):
+    def run_foreground(self, query, options, arguments, deadline):
         # Older managers run sleep as PID 1 and cannot reap a detached daemon.
         # Keep the operation and its subprocess in the same worker on those hosts.
         self.check_login()
         if not arguments.get("capture_output"):
             arguments["stderr"] = subprocess.PIPE
         with effective_config(self.credentials) as config:
+            bound_command_timeout(arguments, deadline)
             try:
                 result = subprocess.run([self.binary, query, "--config", str(config),
                                          "--no-progress", *options], **arguments)
@@ -184,11 +198,12 @@ class Session:
                 raise CompletedTimeout
             return result
 
-    def run(self, query, options, **arguments):
+    def run(self, query, options, *, deadline=None, **arguments):
         # The room manager holds the provider operation lock across the request.
         if not has_container_init():
-            return self.run_foreground(query, options, arguments)
+            return self.run_foreground(query, options, arguments, deadline)
         state = self.ensure()
+        bound_command_timeout(arguments, deadline)
         try:
             result = subprocess.run([self.binary, query, "--config", "none", "--remote", ADDRESS,
                                      "--no-progress", *options], **arguments)

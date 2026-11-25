@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from contract.support import module, run_worker, sources, worker
 from listening_plugin.runtime import dispatch
@@ -134,7 +134,8 @@ class Plugins(unittest.TestCase):
             api.side_effect = [{"soulseekClient": {"isReady": True}}, [{"workflowId": workflow, "activeJobCount": 1}],
                                {}, {"activeJobCount": 0}]
             session.abort({})
-            api.assert_any_call(f"workflows/{workflow}/cancel", "POST")
+            api.assert_any_call(f"workflows/{workflow}/cancel", "POST", deadline=ANY)
+            self.assertEqual(len({call.kwargs["deadline"] for call in api.call_args_list}), 1)
 
     def test_legacy_worker_reaps_foreground_client_and_backs_off_failed_login(self):
         from listening_plugin import LoginUnavailable

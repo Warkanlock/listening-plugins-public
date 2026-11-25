@@ -1,6 +1,7 @@
 """Search and fetch recordings with the Sockseek command-line tool."""
 import json
 import subprocess
+import time
 import unicodedata
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -13,6 +14,11 @@ from .peers import artist_credits, ranked_candidates
 BINARY = "/opt/sockseek/sockseek"
 SOURCE = "soulseek"
 SUFFIXES = {".mp3", ".flac", ".m4a"}
+SEARCH_WINDOW_MILLISECONDS = 6500
+SEARCH_QUERY_TIMEOUT_SECONDS = 20
+# The manager gives a search worker 35 seconds. Reserve time for cancellation
+# and the worker reply after the artist query and title fallback share this budget.
+SEARCH_LIST_TIMEOUT_SECONDS = 29
 
 
 def query_words(value):
@@ -82,11 +88,12 @@ class Provider:
         artist = query_words(artist_credits(recording.artist)[0])
         if not title:
             return ()
+        deadline = time.monotonic() + SEARCH_LIST_TIMEOUT_SECONDS
         query = " ".join(part for part in (artist, hint) if part)
-        ranked = self._list_query(query, recording, formats, preferred)
+        ranked = self._list_query(query, recording, formats, preferred, deadline)
         if query != title and not any(candidate.recommended for candidate in ranked):
             try:
-                broader = self._list_query(title, recording, formats, preferred)
+                broader = self._list_query(title, recording, formats, preferred, deadline)
             except (CompletedTimeout, LoginUnavailable, RuntimeError):
                 if not ranked:
                     raise
@@ -97,11 +104,14 @@ class Provider:
                 ] + [candidate for candidate in broader if not candidate.recommended]
         return ranked
 
-    def _list_query(self, query, recording, formats, preferred):
+    def _list_query(self, query, recording, formats, preferred, deadline):
+        if deadline - time.monotonic() <= SEARCH_WINDOW_MILLISECONDS / 1000:
+            raise CompletedTimeout
         process = self.run(
             query, ["--progress-json", "--print", "json-all", "--format", ",".join(formats),
              "--pref-format", preferred, "--input-type", "string", "--song",
-             "--search-timeout", "6500"], capture_output=True, text=True, timeout=14,
+             "--search-timeout", str(SEARCH_WINDOW_MILLISECONDS)], capture_output=True, text=True,
+            timeout=SEARCH_QUERY_TIMEOUT_SECONDS, deadline=deadline,
         )
         return ranked_candidates(search_results(process), formats, preferred, recording, SOURCE)
 
