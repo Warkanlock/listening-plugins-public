@@ -33,6 +33,8 @@ Export a class named `Provider`. It receives a [PluginContext](sdk/listening_plu
 
 Read managed settings using `context.settings()`. Declare secret fields in the manifest and set their values in the room. Preserve the plugin ID, setting keys and source names when upgrading a published plugin. The shared SDK handles protocol v1, candidate limits and error responses. Report a completed timeout only after the operation has stopped and released its resources.
 
+During a fetch, a provider can call `report_download_progress(staging, received, total)` from `listening_plugin.progress` with actual byte counts. The helper writes an optional progress sample in staging. Leave it absent when the total is unknown. The room still verifies the audio after the transfer finishes.
+
 The SDK exposes `list()` through the existing `search` capability and still accepts providers that implement `search(recording)`. Set `label` to a public display name and optionally include `format`, `duration` in seconds and `bitrate` in kbps. Use `recommended=False` for uncertain matches such as a live take of a studio recording. Listening can show these in Browse copies and skips them when automatically choosing a copy for an individual request. Selected copies go through the same audio verification. Keep credentials, private paths and peer handles out of display labels.
 
 The [example catalog](plugins/example-catalog/provider.py) uses the default Python image recipe. [Sockseek](plugins/sockseek/provider.py) keeps its native binary recipe, upstream pin and license under its own `build/` directory. New providers using the default runtime need only their manifest and provider.
