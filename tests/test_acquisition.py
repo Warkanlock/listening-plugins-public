@@ -92,6 +92,71 @@ class AcquisitionTests(unittest.TestCase):
         self.assertTrue(live["candidates"][0]["recommended"])
         self.assertIn("(Live)", live["candidates"][0]["label"])
 
+    def test_sockseek_allows_a_slow_search_to_succeed_on_the_first_attempt(self):
+        code = module("sockseek", "session")
+        peers = [{"User": {"Username": "fixture-peer"},
+                  "File": {"Filename": "Artist/Song.mp3", "Bitrate": 320}}]
+
+        def finish(command, *, timeout, **options):
+            if timeout < 16:
+                raise subprocess.TimeoutExpired(command, timeout)
+            return subprocess.CompletedProcess(command, 0, json.dumps(peers))
+
+        with patch.object(code, "has_container_init", return_value=True), patch.object(
+                code.Session, "ensure", return_value={}), patch.object(subprocess, "run", side_effect=finish) as client:
+            response = request(self.peer, "search", recording=self.record)
+
+        client.assert_called_once()
+        self.assertTrue(response["ok"])
+        self.assertEqual([match["label"] for match in response["candidates"]], ["Song.mp3"])
+
+    def test_sockseek_title_fallback_shares_the_search_budget(self):
+        code = module("sockseek", "session")
+        now = 100
+        limits = []
+
+        def finish(command, *, timeout, **options):
+            nonlocal now
+            limits.append(timeout)
+            elapsed = 13.9 if len(limits) == 1 else 13.6
+            if timeout < elapsed:
+                raise subprocess.TimeoutExpired(command, timeout)
+            now += elapsed
+            if len(limits) == 1:
+                return subprocess.CompletedProcess(command, 0, "[]")
+            return subprocess.CompletedProcess(command, 0, json.dumps([
+                {"User": {"Username": "fixture-peer"}, "File": {"Filename": "Artist/Song.mp3"}}
+            ]))
+
+        def connect():
+            nonlocal now
+            now += 0.1
+            return {}
+
+        with patch.object(code.time, "monotonic", side_effect=lambda: now), patch.object(
+                code, "has_container_init", return_value=True), patch.object(
+                code.Session, "ensure", side_effect=connect), patch.object(subprocess, "run", side_effect=finish):
+            response = request(self.peer, "search", recording=self.record)
+
+        self.assertTrue(response["ok"])
+        self.assertEqual([match["label"] for match in response["candidates"]], ["Song.mp3"])
+        self.assertGreater(limits[0], 16)
+        self.assertAlmostEqual(now - 100, 27.7)
+        self.assertLessEqual(14.1 + limits[1], 29.01)
+
+    def test_sockseek_returns_initial_candidates_if_too_little_time_remains_to_broaden(self):
+        code = module("sockseek", "provider")
+        peers = [{"User": {"Username": "fixture-peer"},
+                  "File": {"Filename": "Song.mp3", "Bitrate": 320}}]
+        with patch.object(code.time, "monotonic", side_effect=[100, 100, 123]), patch.object(
+                self.peer, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(peers))) as client:
+            response = request(self.peer, "search", recording=self.record)
+
+        client.assert_called_once()
+        self.assertTrue(response["ok"])
+        self.assertEqual([(match["label"], match["recommended"]) for match in response["candidates"]],
+                         [("Song.mp3", False)])
+
     def test_live_request_drops_venue_from_fallback_without_recommending_studio_copy(self):
         qualifier = "live, 2014-10-24: Fixture Hall"
         recording = {**self.record, "search_title": f"Song {qualifier}", "version": qualifier, "duration": 274}
