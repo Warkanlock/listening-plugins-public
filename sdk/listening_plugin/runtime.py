@@ -12,6 +12,8 @@ from .manifest import read_manifest
 
 def check_methods(provider, manifest):
     for name in ("test", *manifest["sources"]):
+        if name == "search" and callable(getattr(provider, "list", None)):
+            continue
         if not callable(getattr(provider, name, None)):
             raise ValueError(f"Provider must implement {name}()")
 
@@ -25,12 +27,23 @@ def candidates(results: Iterable[Candidate], sources):
         if not (isinstance(candidate, Candidate) and candidate.source in sources
                 and isinstance(candidate.id, str) and 0 < len(candidate.id) <= 512):
             raise ValueError("Invalid candidate")
-        if candidate not in seen:
+        key = (candidate.source, candidate.id)
+        if key not in seen:
             entry = {"source": candidate.source, "id": candidate.id}
+            if isinstance(candidate.label, str) and candidate.label:
+                entry["label"] = candidate.label[:180]
+            if isinstance(candidate.format, str) and candidate.format:
+                entry["format"] = candidate.format[:12]
+            for field, limit in (("duration", 86400), ("bitrate", 100000)):
+                value = getattr(candidate, field)
+                if type(value) is int and 0 < value <= limit:
+                    entry[field] = value
+            if type(candidate.recommended) is bool:
+                entry["recommended"] = candidate.recommended
             size += len(json.dumps(entry)) + (2 if ordered else 0)
             if size > LIMIT:
                 break
-            seen.add(candidate)
+            seen.add(key)
             ordered.append(entry)
             if len(ordered) == 20:
                 break
@@ -53,8 +66,11 @@ def dispatch(provider, sources, request):
             raise ValueError("Invalid formats")
         recording = Recording(artist=rec["artist"], title=rec["title"], formats=tuple(formats),
                               preferred_format=rec.get("preferred_format", ""), search_title=rec.get("search_title", rec["title"]),
-                              id=rec.get("id", ""), album=rec.get("album", ""), duration=rec.get("duration", 0))
-        return {"ok": True, "candidates": candidates(provider.search(recording), sources[action])}
+                              id=rec.get("id", ""), album=rec.get("album", ""), duration=rec.get("duration", 0),
+                              version=rec.get("version", ""))
+        listing = getattr(provider, "list", None)
+        results = listing(recording) if callable(listing) else provider.search(recording)
+        return {"ok": True, "candidates": candidates(results, sources[action])}
     candidate = Candidate(**request["candidate"])
     if candidate.source not in sources[action] or not isinstance(candidate.id, str) or not 0 < len(candidate.id) <= 512:
         raise Unavailable("Unsupported candidate.")

@@ -1,4 +1,4 @@
-name: Build public Sockseek image
+name: Build public plugin images
 
 on:
   workflow_dispatch:
@@ -8,9 +8,15 @@ permissions:
   packages: write
 
 jobs:
-  sockseek:
+  plugin:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - {id: sockseek, arch: amd64, runner: ubuntu-24.04}
+          - {id: example-catalog, arch: amd64, runner: ubuntu-24.04}
+          - {id: example-catalog, arch: arm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,16 +32,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and record the immutable image
+        env:
+          PLUGIN_ID: ${{ matrix.id }}
+          PLUGIN_ARCH: ${{ matrix.arch }}
         run: |
-          version=$(jq -r .version plugins/sockseek/manifest.json)
-          package="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/listening-public-sockseek"
-          tag="$package:$version-amd64-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          python3 tools/plugins.py build sockseek --arch amd64 --tag "$tag" --push
+          version=$(jq -r .version "plugins/$PLUGIN_ID/manifest.json")
+          package="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/listening-public-$PLUGIN_ID"
+          tag="$package:$version-$PLUGIN_ARCH-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          python3 tools/plugins.py build "$PLUGIN_ID" --arch "$PLUGIN_ARCH" --tag "$tag" --push
           digest=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest.Digest}}' | jq -er .)
           [[ $digest =~ ^sha256:[a-f0-9]{64}$ ]]
-          printf 'sockseek/amd64=%s@%s\n' "$package" "$digest" > image.txt
+          printf '%s/%s=%s@%s\n' "$PLUGIN_ID" "$PLUGIN_ARCH" "$package" "$digest" > image.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: image-sockseek-amd64
+          name: image-${{ matrix.id }}-${{ matrix.arch }}
           path: image.txt
           if-no-files-found: error

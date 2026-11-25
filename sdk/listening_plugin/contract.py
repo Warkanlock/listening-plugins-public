@@ -2,7 +2,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Protocol
+from typing import Iterable, Optional, Protocol
 
 LIMIT = 64 * 1024
 
@@ -25,12 +25,18 @@ class Recording:
     id: str = ""
     album: str = ""
     duration: float = 0
+    version: str = ""
 
 
 @dataclass(frozen=True)
 class Candidate:
     source: str
     id: str
+    label: str = ""
+    format: str = ""
+    duration: Optional[int] = None
+    bitrate: Optional[int] = None
+    recommended: Optional[bool] = None
 
 
 class ReadyPlugin(Protocol):
@@ -39,6 +45,10 @@ class ReadyPlugin(Protocol):
 
 class SearchPlugin(ReadyPlugin, Protocol):
     def search(self, recording: Recording) -> Iterable[Candidate]: ...
+
+
+class ListingPlugin(ReadyPlugin, Protocol):
+    def list(self, recording: Recording) -> Iterable[Candidate]: ...
 
 
 class FetchPlugin(ReadyPlugin, Protocol):

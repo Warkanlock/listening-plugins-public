@@ -18,7 +18,7 @@ class Provider:
     def test(self):
         self.source.recordings()
 
-    def search(self, recording):
+    def list(self, recording):
         desired = recording.formats
         title, artist = (value.strip().casefold() for value in (recording.title, recording.artist))
         matches = []
@@ -32,7 +32,7 @@ class Provider:
                 matches.append((identity, formats))
         ids = (identity + suffix for suffix in desired if suffix in FORMATS
                for identity, formats in matches if suffix in formats)
-        return (Candidate(SOURCE, value) for value in ids)
+        return (Candidate(SOURCE, value, label=value, format=Path(value).suffix[1:], recommended=True) for value in ids)
 
     def fetch(self, candidate, staging):
         name = candidate.id

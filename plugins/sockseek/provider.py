@@ -1,17 +1,24 @@
 """Search and fetch recordings with the Sockseek command-line tool."""
 import json
 import subprocess
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from listening_plugin import Candidate, CompletedTimeout, ConfigurationError, Unavailable
+from listening_plugin import CompletedTimeout, ConfigurationError, LoginUnavailable, Unavailable
 from .configuration import has_login
 from .session import Session
-from .peers import ranked_links
+from .peers import ranked_candidates
 
 BINARY = "/opt/sockseek/sockseek"
 SOURCE = "soulseek"
 SUFFIXES = {".mp3", ".flac", ".m4a"}
+
+
+def query_words(value):
+    text = unicodedata.normalize("NFC", value.lower())
+    return " ".join("".join(char if char.isalnum() or unicodedata.category(char).startswith("M") else " "
+                            for char in text).split())
 
 
 def invoke(command, **options):
@@ -63,23 +70,40 @@ class Provider:
             raise ConfigurationError("Sockseek is unavailable.")
         Session(self.binary, self.credentials).check_login()
 
-    def search(self, recording):
+    def list(self, recording):
         formats = [suffix[1:] for suffix in recording.formats if suffix in SUFFIXES]
         if not formats:
             return ()
         preferred = recording.preferred_format
         if preferred not in formats:
             preferred = formats[0]
-        parts = (recording.artist, recording.search_title)
-        query = " - ".join(value for value in parts if value).strip()
-        if not query or query.startswith("-"):
+        title = query_words(recording.title or recording.search_title)
+        hint = query_words(recording.search_title) or title
+        artist = query_words(recording.artist)
+        if not title:
             return ()
+        query = " ".join(part for part in (artist, hint) if part)
+        ranked = self._list_query(query, recording, formats, preferred)
+        if query != title and not any(candidate.recommended for candidate in ranked):
+            try:
+                broader = self._list_query(title, recording, formats, preferred)
+            except (CompletedTimeout, LoginUnavailable, RuntimeError):
+                if not ranked:
+                    raise
+            else:
+                known = {candidate.id for candidate in broader}
+                ranked = [candidate for candidate in broader if candidate.recommended] + [
+                    candidate for candidate in ranked if candidate.id not in known
+                ] + [candidate for candidate in broader if not candidate.recommended]
+        return ranked
+
+    def _list_query(self, query, recording, formats, preferred):
         process = self.run(
             query, ["--progress-json", "--print", "json-all", "--format", ",".join(formats),
              "--pref-format", preferred, "--input-type", "string", "--song",
-             "--search-timeout", "6000"], capture_output=True, text=True, timeout=22,
+             "--search-timeout", "6500"], capture_output=True, text=True, timeout=14,
         )
-        return (Candidate(SOURCE, link) for link in ranked_links(search_results(process), formats, preferred))
+        return ranked_candidates(search_results(process), formats, preferred, recording, SOURCE)
 
     def fetch(self, candidate, directory):
         link = candidate.id
