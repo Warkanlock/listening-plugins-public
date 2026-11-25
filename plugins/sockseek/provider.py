@@ -10,6 +10,7 @@ from listening_plugin import CompletedTimeout, ConfigurationError, LoginUnavaila
 from .configuration import has_login
 from .session import Session
 from .peers import artist_credits, ranked_candidates
+from .progress import progress_output
 
 BINARY = "/opt/sockseek/sockseek"
 SOURCE = "soulseek"
@@ -122,11 +123,12 @@ class Provider:
                 or not parts.path or parts.query or parts.fragment or len(link) > 512):
             raise Unavailable("Unsupported Soulseek candidate.")
         directory = Path(directory)
-        process = self.run(
-            link, ["--output-dir", str(directory), "--max-retries", "2",
-             "--max-stale-time", "30000"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=90,
-        )
+        with progress_output(directory) as output:
+            process = self.run(
+                link, ["--output-dir", str(directory), "--max-retries", "2",
+                       "--max-stale-time", "30000", "--progress-json"],
+                stdout=output, stderr=subprocess.DEVNULL, timeout=90,
+            )
         if process.returncode:
             raise Unavailable("This peer did not complete the transfer.")
         for file in directory.rglob("*"):

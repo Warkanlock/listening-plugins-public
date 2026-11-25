@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stdout
 from io import BytesIO, StringIO
@@ -91,6 +92,22 @@ class AcquisitionTests(unittest.TestCase):
         run.assert_called_once()
         self.assertTrue(live["candidates"][0]["recommended"])
         self.assertIn("(Live)", live["candidates"][0]["label"])
+
+    def test_sockseek_publishes_byte_progress_while_the_transfer_is_open(self):
+        progress = module("sockseek", "progress")
+        observed = threading.Event()
+        publish = progress.report_download_progress
+
+        def report(staging, received, total):
+            publish(staging, received, total)
+            observed.set()
+
+        with patch.object(progress, "report_download_progress", side_effect=report):
+            with progress.progress_output(self.root) as output:
+                output.write(b'{"type":"download_progress","data":{"bytesTransferred":83,"totalBytes":200}}\n')
+                output.flush()
+                self.assertTrue(observed.wait(2))
+                self.assertEqual((self.root / ".download-progress").read_text(), "41")
 
     def test_sockseek_allows_a_slow_search_to_succeed_on_the_first_attempt(self):
         code = module("sockseek", "session")
