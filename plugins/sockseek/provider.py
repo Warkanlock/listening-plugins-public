@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from listening_plugin import CompletedTimeout, ConfigurationError, LoginUnavailable, Unavailable
 from .configuration import has_login
 from .session import Session
-from .peers import ranked_candidates
+from .peers import artist_credits, ranked_candidates
 
 BINARY = "/opt/sockseek/sockseek"
 SOURCE = "soulseek"
@@ -79,7 +79,7 @@ class Provider:
             preferred = formats[0]
         title = query_words(recording.title or recording.search_title)
         hint = query_words(recording.search_title) or title
-        artist = query_words(recording.artist)
+        artist = query_words(artist_credits(recording.artist)[0])
         if not title:
             return ()
         query = " ".join(part for part in (artist, hint) if part)
