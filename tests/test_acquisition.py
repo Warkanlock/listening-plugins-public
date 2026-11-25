@@ -109,6 +109,29 @@ class AcquisitionTests(unittest.TestCase):
         self.assertEqual([(match["label"], match["recommended"]) for match in response["candidates"]],
                          [("Song (Live).flac", True), ("Song.mp3", False)])
 
+    def test_featured_credit_can_be_split_between_directory_and_filename(self):
+        names = ["Track (feat. Guest Artist).mp3", "Track.mp3", "Track (feat. Other Artist).mp3",
+                 "Track (feat. Guest Artist and Other Artist).mp3"]
+        peers = [{"User": {"Username": "example"}, "File": {
+            "Filename": "Main Artist/Album/" + name, "Length": 224, "Bitrate": 320}} for name in names]
+        for index in (1, 2):
+            peers[index]["File"]["Filename"] = "Main Artist/Guest Artist Collection/" + names[index]
+        recording = {**self.record, "title": "Track", "artist": "Main Artist feat. Guest Artist", "duration": 224}
+        with patch.object(self.peer, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(peers))) as run:
+            result = request(self.peer, "search", recording=recording)
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], "main artist track")
+        self.assertEqual(result["candidates"][0]["label"], names[0])
+        self.assertEqual([row["recommended"] for row in result["candidates"]], [True, False, False, False])
+
+    def test_ft_in_the_song_title_is_not_a_guest_credit(self):
+        peers = [{"User": {"Username": "example"}, "File": {
+            "Filename": "Main Artist/Album/50 Ft Queenie.mp3", "Length": 224, "Bitrate": 320}}]
+        recording = {**self.record, "title": "50 Ft Queenie", "artist": "Main Artist", "duration": 224}
+        with patch.object(self.peer, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(peers))):
+            result = request(self.peer, "search", recording=recording)
+        self.assertTrue(result["candidates"][0]["recommended"])
+
     def test_sockseek_preserves_a_number_at_the_start_of_a_song_title(self):
         peers = [{"User": {"Username": "fixture-peer"}, "File": {"Filename": "Artist/2 U.flac"}}]
         with patch.object(self.peer, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(peers))) as run:

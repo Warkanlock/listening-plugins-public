@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "protocol_version": 1,
   "id": "sockseek",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "architectures": [
     "amd64"
   ],
@@ -24,7 +24,8 @@
     "1.5.14",
     "1.5.15",
     "1.5.16",
-    "1.5.17"
+    "1.5.17",
+    "1.5.18"
   ],
   "sources": {
     "search": [
