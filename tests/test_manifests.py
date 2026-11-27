@@ -47,6 +47,7 @@ class ManifestTests(unittest.TestCase):
         entry, = catalog(self.shipped, [ref])["engines"]
         self.assertEqual(entry["settings"], self.shipped["sockseek"]["settings"])
         self.assertEqual(entry["sources"], {"search": ["soulseek"], "fetch": ["soulseek"]})
+        self.assertEqual(entry["capabilities"], ["search", "fetch", "share"])
         for images in ([ref, ref], ["sockseek/arm64=" + digest], ["sockseek/amd64=registry.test/plugin:latest"]):
             with self.subTest(images=images), self.assertRaises(ValueError):
                 catalog(self.shipped, images)
@@ -61,3 +62,21 @@ class ManifestTests(unittest.TestCase):
     def test_shipped_providers_implement_declared_methods(self):
         for name, manifest in self.shipped.items():
             check_methods(module(name, "provider").Provider, manifest)
+
+    def test_share_only_plugin_declares_no_acquisition_sources(self):
+        class Provider:
+            def test(self):
+                pass
+
+            def share(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as target:
+            path = Path(target) / "manifest.json"
+            from listening_plugin.manifest import read_manifest
+            manifest = dict(self.manifest, capabilities=["share"], sources={})
+            path.write_text(json.dumps(manifest))
+            check_methods(Provider, read_manifest(path))
+            path.write_text(json.dumps(dict(manifest, sources={"share": ["test"]})))
+            with self.assertRaises(ValueError):
+                read_manifest(path)

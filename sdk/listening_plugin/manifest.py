@@ -17,11 +17,15 @@ def strings(values, pattern):
             and len(values) == len(set(values)))
 
 
+def capabilities(manifest):
+    return manifest.get("capabilities", list(manifest["sources"]))
+
+
 def read_manifest(path: Path):
     data = json.loads(path.read_text(encoding="utf-8"))
     fields = {"manifest_version", "protocol_version", "id", "version", "architectures",
               "server_versions", "sources", "settings"}
-    if not isinstance(data, dict) or set(data) != fields:
+    if not isinstance(data, dict) or not fields <= data.keys() <= fields | {"capabilities"}:
         raise ValueError(f"Invalid manifest fields in {path}")
     for field in ("manifest_version", "protocol_version"):
         if type(data[field]) is not int or data[field] != 1:
@@ -30,7 +34,9 @@ def read_manifest(path: Path):
     if not (matches(data["id"], ID) and matches(data["version"], VERSION)
             and strings(data["architectures"], r"[a-z0-9][a-z0-9_]{0,31}")
             and strings(data["server_versions"], VERSION)
-            and isinstance(sources, dict) and sources and set(sources) <= {"search", "fetch"}
+            and isinstance(sources, dict) and set(sources) <= {"search", "fetch"}
+            and strings(capabilities(data), r"search|fetch|share")
+            and set(sources) == (set(capabilities(data)) - {"share"})
             and all(strings(names, r"[a-z][a-z0-9._-]{0,63}") for names in sources.values())):
         raise ValueError(f"Invalid plugin identity, compatibility or sources in {path}")
     settings = data["settings"]

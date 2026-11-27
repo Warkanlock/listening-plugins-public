@@ -2,32 +2,14 @@
   "manifest_version": 1,
   "protocol_version": 1,
   "id": "sockseek",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "architectures": [
     "amd64"
   ],
   "server_versions": [
-    "1.5.0",
-    "1.5.1",
-    "1.5.2",
-    "1.5.3",
-    "1.5.4",
-    "1.5.5",
-    "1.5.6",
-    "1.5.7",
-    "1.5.8",
-    "1.5.9",
-    "1.5.10",
-    "1.5.11",
-    "1.5.12",
-    "1.5.13",
-    "1.5.14",
-    "1.5.15",
-    "1.5.16",
-    "1.5.17",
-    "1.5.18",
-    "2.0.0"
+    "2.0.4"
   ],
+  "capabilities": ["search", "fetch", "share"],
   "sources": {
     "search": [
       "soulseek"
@@ -39,15 +21,27 @@
   "settings": [
     {
       "key": "username",
-      "label": "Account name",
+      "label": "Download account name",
       "type": "text",
       "required": true
     },
     {
       "key": "password",
-      "label": "Account password",
+      "label": "Download account password",
       "type": "secret",
       "required": true
+    },
+    {
+      "key": "share_username",
+      "label": "Sharing account name",
+      "type": "text",
+      "required": false
+    },
+    {
+      "key": "share_password",
+      "label": "Sharing account password",
+      "type": "secret",
+      "required": false
     }
   ]
 }

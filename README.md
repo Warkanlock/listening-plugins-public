@@ -2,7 +2,7 @@
 
 ## Bring your own music sources.
 
-[Listening Room](https://github.com/Warkanlock/listening-public) builds a library from the music files you own. An optional plugin can search a catalog, retrieve audio you have permission to store, or do both. Listening verifies a recording before adding it to the library.
+[Listening Room](https://github.com/Warkanlock/listening-public) builds a library from the music files you own. Optional plugins can search catalogs, retrieve audio, and share files you have permission to distribute. Listening verifies a recording before adding it to the library.
 
 ## Install a plugin
 
@@ -13,11 +13,29 @@ On a Linux Docker host, give the Listening engine manager a verified copy of the
 | Plugin | Source | Settings |
 | --- | --- | --- |
 | Example catalog | An HTTP or HTTPS catalog you operate | Catalog URL |
-| Sockseek | A separately distributed search and transfer tool on Linux amd64 | Account name and password |
+| Sockseek | Soulseek search, downloads, and sharing on Linux amd64 | Download account and optional sharing account |
 
 The example catalog matches artist and title against `catalog.json` and retrieves files under `audio/`. Its catalog is a JSON list of records such as `{"id":"first-light","artist":"Example Artist","title":"First Light","formats":[".mp3"]}`. The same catalog can be used as a local development fixture.
 
 For an existing Sockseek installation, the plugin also reads the operator's existing `sockseek.conf` if it is staged in this plugin's credentials directory. The readiness check verifies configuration and the executable and reports a recent failed login. The first search signs in to Soulseek. On managers that start workers with Docker init, search and download reuse that connection inside the worker. Older managers use a foreground process per operation. An upstream login outage keeps the request queued while the worker waits before retrying. Test an authorized recording before moving an existing room's jobs to this plugin.
+
+## Share files with Sockseek
+
+Sockseek 1.0.12 requires Listening 2.0.4 and its engine manager. Keep older managers pinned to their previous signed catalog. Give the new manager a dedicated sharing root on the Docker host. Keep its files under your control, and include only files you have permission to distribute. Sockseek rejects symbolic links and special files at startup. While running, it skips links and opens audio through directory descriptors confined to the selected folder.
+
+In **Settings → Extensions**, open **Sockseek** and enter a separate sharing account. Save the settings, select a folder under the sharing root, and select **Start sharing**. Nicotine+ runs in the extension and reads the chosen folder. Restart sharing to rescan the folder or apply account changes. Some peers may be unreachable if neither side accepts incoming connections.
+
+### Import existing accounts
+
+Run the importer on the Docker host as the user who runs the engine manager. Give it the path to the manager's state directory and each existing profile you want to import.
+
+```sh
+python3 tools/migrate_sockseek.py --state /path/to/engine-state \
+    --download-config /path/to/sockseek.conf \
+    --sharing-config /path/to/nicotine-share.conf
+```
+
+The importer preserves existing extension account settings and leaves the old profiles in place. Select the share folder in Extensions after the import. Stop the previous sharing process before starting the extension to avoid two clients signing in to the same account.
 
 ## Build a plugin
 
@@ -30,8 +48,11 @@ Export a class named `Provider`. It receives a [PluginContext](sdk/listening_plu
 | `test()` | A context with access to the plugin’s settings | Return normally when configured and ready, or raise a credential-free configuration error. |
 | `list(recording)` | Artist, title, album, duration and requested formats | An iterable of ranked `Candidate(source, id)` objects, best match first. Keep IDs opaque and stable across releases. |
 | `fetch(candidate, staging)` | A supported candidate and an empty staging directory | Write one audio file there and return its basename. Listening verifies and stores the audio. |
+| `share()` | Read-only mounts at `/share` and `/credentials`, and a writable `/scratch` | Serve the selected folder as a foreground process until the manager stops the container. |
 
 Read managed settings using `context.settings()`. Declare secret fields in the manifest and set their values in the room. Preserve the plugin ID, setting keys and source names when upgrading a published plugin. The shared SDK handles protocol v1, candidate limits and error responses. Report a completed timeout only after the operation has stopped and released its resources.
+
+To add sharing, declare a `capabilities` list with `share` and any acquisition methods the plugin supports. List source namespaces for `search` and `fetch` only. Use an empty `sources` object for a share-only plugin. The manager starts sharing in a separate container through `listening-engine --share`. Keep the sharing process in the foreground and let it stop when the container receives a termination signal.
 
 During a fetch, a provider can call `report_download_progress(staging, received, total)` from `listening_plugin.progress` with actual byte counts. The helper writes an optional progress sample in staging. Leave it absent when the total is unknown. The room still verifies the audio after the transfer finishes.
 
@@ -59,6 +80,8 @@ openssl dgst -sha256 -sign /private/path/plugin-signing.pem -out catalog.sig cat
 Attach `catalog.json` and `catalog.sig` to the release and distribute the verified public signing key. Retain the previous digest in the registry so the room can roll back. Update and rollback preserve settings in the room’s credentials directory.
 
 The wrappers are MIT licensed. The Sockseek image redistributes the unmodified Sockseek v3.0.6 binary under AGPL-3.0 and installs the upstream license at `/usr/share/licenses/sockseek/LICENSE`. Include the corresponding source and license links alongside the image digest in release notes. [Pinned source](https://github.com/fiso64/sockseek/archive/refs/tags/v3.0.6.tar.gz) · [Upstream license](plugins/sockseek/build/licenses/Sockseek-AGPL-3.0.txt) · [MIT license](LICENSE)
+
+The Sockseek image also redistributes Nicotine+ 3.3.11 with changes to confine scanning, metadata reads, and uploads to the selected folder. The pinned wheel includes its GPL-3.0-or-later license and authors. To reproduce the modified source, use the pinned upstream source, the [build-time patch](plugins/sockseek/build/contain_nicotine_shares.py), and the [sharing file reader](plugins/sockseek/share_files.py). [Nicotine+ source](https://github.com/Nicotine-Plus/nicotine-plus/archive/refs/tags/3.3.11.tar.gz) · [Nicotine+ license](https://github.com/Nicotine-Plus/nicotine-plus/blob/3.3.11/COPYING)
 
 ### Temporary sign-in failures
 
