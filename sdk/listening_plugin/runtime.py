@@ -7,11 +7,11 @@ from typing import Iterable
 
 from .contract import (LIMIT, Candidate, CompletedTimeout, ConfigurationError,
                        LoginUnavailable, PluginContext, Recording, Unavailable)
-from .manifest import read_manifest
+from .manifest import capabilities, read_manifest
 
 
 def check_methods(provider, manifest):
-    for name in ("test", *manifest["sources"]):
+    for name in ("test", *capabilities(manifest)):
         if name == "search" and callable(getattr(provider, "list", None)):
             continue
         if not callable(getattr(provider, name, None)):
@@ -105,6 +105,18 @@ def main():
     from plugin.provider import Provider
     manifest = read_manifest(Path("/opt/listening/plugin/manifest.json"))
     check_methods(Provider, manifest)
-    if sys.argv[1:] == ["--validate"]:
+    args = sys.argv[1:]
+    if args == ["--validate"]:
         return
-    serve(lambda: Provider(PluginContext(Path("/credentials"))), manifest["sources"])
+    context = PluginContext(Path("/credentials"))
+    if args == ["--share"] and "share" in capabilities(manifest):
+        try:
+            Provider(context).share()
+        except ConfigurationError as error:
+            raise SystemExit(str(error)) from None
+        except Exception:
+            raise SystemExit("The plugin could not start sharing.") from None
+    elif not args:
+        serve(lambda: Provider(context), manifest["sources"])
+    else:
+        raise SystemExit("Unsupported plugin operation.")

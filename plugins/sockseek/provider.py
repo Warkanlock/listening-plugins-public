@@ -11,6 +11,7 @@ from .configuration import has_login
 from .session import Session
 from .peers import artist_credits, ranked_candidates
 from .progress import progress_output
+from .sharing import serve_share
 
 BINARY = "/opt/sockseek/sockseek"
 SOURCE = "soulseek"
@@ -76,6 +77,9 @@ class Provider:
         if result.returncode:
             raise ConfigurationError("Sockseek is unavailable.")
         Session(self.binary, self.credentials).check_login()
+
+    def share(self):
+        serve_share(self.credentials)
 
     def list(self, recording):
         formats = [suffix[1:] for suffix in recording.formats if suffix in SUFFIXES]

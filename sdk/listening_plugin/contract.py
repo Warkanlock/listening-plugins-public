@@ -55,6 +55,10 @@ class FetchPlugin(ReadyPlugin, Protocol):
     def fetch(self, candidate: Candidate, staging: Path) -> str: ...
 
 
+class SharePlugin(ReadyPlugin, Protocol):
+    def share(self) -> None: ...
+
+
 class LoginUnavailable(Exception):
     """Login could not complete. An optional delay applies to the entire source."""
 

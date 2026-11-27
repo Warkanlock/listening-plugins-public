@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "sdk"))
-from listening_plugin.manifest import IMAGE, read_manifest
+from listening_plugin.manifest import IMAGE, capabilities, read_manifest
 
 
 def discover(root):
@@ -38,7 +38,7 @@ def catalog(plugins, images):
             raise ValueError(f"Invalid or duplicate release image for {identity_arch}")
         seen.add(identity_arch)
         entries.append({field: plugin[field] for field in ("id", "version", "server_versions", "sources", "settings")})
-        entries[-1].update(architecture=arch, capabilities=list(plugin["sources"]), image=digest)
+        entries[-1].update(architecture=arch, capabilities=capabilities(plugin), image=digest)
     return {"version": 1, "engines": entries}
 
 

@@ -42,14 +42,14 @@ def default_credentials(content):
 def effective_config(directory):
     legacy = directory / "sockseek.conf"
     values = settings(directory)
-    if not values:
+    updates = {key: values[key] for key in ("username", "password") if key in values}
+    if not updates:
         yield legacy
         return
     try:
         prior = legacy.read_text(encoding="utf-8-sig")
     except FileNotFoundError:
         prior = ""
-    updates = {key: values[key] for key in ("username", "password") if key in values}
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config:
         # Sockseek normally expands {configdir} beside the active config.
         # Keep those paths anchored to the existing read-only mount.

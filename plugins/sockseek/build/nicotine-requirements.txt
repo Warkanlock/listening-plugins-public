@@ -1,0 +1,1 @@
+nicotine-plus==3.3.11 --hash=sha256:57a5fdf5f4d3ca993bfd3e086348c95536557cfa68569c0fc03b21f5c8d4307a
