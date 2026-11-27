@@ -2,7 +2,7 @@
 
 ## Bring your own music sources.
 
-[Listening Room](https://github.com/Warkanlock/listening-public) builds a library from the music files you own. Optional plugins can search catalogs, retrieve audio, and share files you have permission to distribute. Listening verifies a recording before adding it to the library.
+[Listening](https://github.com/Warkanlock/listening-public) builds a library from the music files you own. Optional plugins can search catalogs, retrieve audio, and share files you have permission to distribute. Listening verifies a recording before adding it to the library.
 
 ## Install a plugin
 
