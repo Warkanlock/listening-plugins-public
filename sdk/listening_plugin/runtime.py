@@ -38,8 +38,9 @@ def candidates(results: Iterable[Candidate], sources):
                 value = getattr(candidate, field)
                 if type(value) is int and 0 < value <= limit:
                     entry[field] = value
-            if type(candidate.recommended) is bool:
-                entry["recommended"] = candidate.recommended
+            for field in ("recommended", "identity_match"):
+                if type(value := getattr(candidate, field)) is bool:
+                    entry[field] = value
             size += len(json.dumps(entry)) + (2 if ordered else 0)
             if size > LIMIT:
                 break
@@ -64,10 +65,13 @@ def dispatch(provider, sources, request):
         formats = rec["formats"]
         if not isinstance(formats, list) or not all(isinstance(value, str) for value in formats):
             raise ValueError("Invalid formats")
+        query = rec.get("search_query", "")
+        if not isinstance(query, str) or len(query) > 1000:
+            raise ValueError("Invalid search query")
         recording = Recording(artist=rec["artist"], title=rec["title"], formats=tuple(formats),
                               preferred_format=rec.get("preferred_format", ""), search_title=rec.get("search_title", rec["title"]),
                               id=rec.get("id", ""), album=rec.get("album", ""), duration=rec.get("duration", 0),
-                              version=rec.get("version", ""))
+                              version=rec.get("version", ""), search_query=query)
         listing = getattr(provider, "list", None)
         results = listing(recording) if callable(listing) else provider.search(recording)
         return {"ok": True, "candidates": candidates(results, sources[action])}

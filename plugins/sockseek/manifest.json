@@ -2,11 +2,13 @@
   "manifest_version": 1,
   "protocol_version": 1,
   "id": "sockseek",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "architectures": [
     "amd64"
   ],
   "server_versions": [
+    "1.0.0",
+    "1.0.1",
     "2.0.4"
   ],
   "capabilities": ["search", "fetch", "share"],

@@ -94,11 +94,12 @@ class Provider:
         if not title:
             return ()
         deadline = time.monotonic() + SEARCH_LIST_TIMEOUT_SECONDS
-        query = " ".join(part for part in (artist, hint) if part)
+        query = query_words(recording.search_query) or " ".join(part for part in (hint, artist) if part)
+        simpler = " ".join(part for part in (title, artist) if part)
         ranked = self._list_query(query, recording, formats, preferred, deadline)
-        if query != title and not any(candidate.recommended for candidate in ranked):
+        if query != simpler and not any(candidate.recommended for candidate in ranked):
             try:
-                broader = self._list_query(title, recording, formats, preferred, deadline)
+                broader = self._list_query(simpler, recording, formats, preferred, deadline)
             except (CompletedTimeout, LoginUnavailable, RuntimeError):
                 if not ranked:
                     raise

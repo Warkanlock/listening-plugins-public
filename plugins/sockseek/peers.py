@@ -78,6 +78,8 @@ def ranked_candidates(groups, formats, preferred, recording, source):
             continue
         context = words("/".join(path.parts))
         artist_score = artist_similarity(main_artist, context)
+        if main_artist and artist_score < .86:
+            continue
         suffix_words = (" " + name + " ").replace(" " + full_title + " ", " ", 1)
         credits = artist_credits(suffix_words)
         if guest_artists:
@@ -107,7 +109,8 @@ def ranked_candidates(groups, formats, preferred, recording, source):
         reliable = (title_score >= .88 and artist_score >= .86 and guests_match
                     and variant_matches and duration_matches and quality_matches)
         candidate = Candidate(source, key, label=path.name[:180], format=suffix,
-                              duration=duration, bitrate=bitrate, recommended=reliable)
+                              duration=duration, bitrate=bitrate, recommended=reliable,
+                              identity_match=title_score >= .88 and bool(main_artist))
         priority = (reliable, title_score, artist_score, guests_match, duration_matches, variant_matches, album_matches,
                     quality_matches, suffix == preferred, bool(peer.get("HasFreeUploadSlot")), bitrate or 0)
         if key not in ranked or priority > ranked[key][0]:

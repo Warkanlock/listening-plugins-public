@@ -63,7 +63,7 @@ class AcquisitionTests(unittest.TestCase):
         self.assertFalse((self.root / "pick.mp3").exists())
         response.__exit__.assert_called_once()
 
-    def test_sockseek_broadens_to_title_and_ranks_an_artist_found_in_the_folder(self):
+    def test_sockseek_keeps_artist_in_query_and_ranks_an_artist_found_in_the_folder(self):
         def result(filename, bitrate, duration):
             return {"User": {"Username": "fixture-peer"}, "File": {
                 "Filename": filename, "Bitrate": bitrate, "Length": duration}}
@@ -73,15 +73,13 @@ class AcquisitionTests(unittest.TestCase):
             result(r"Music\Ligabue\02 - Ho perso le parole.mp3", 128, 274),
             result(r"Music\Ligabue\06-ho_perso_le_parole.mp3", 320, 274),
             result(r"Music\Ligabue\06. A different song.mp3", 320, 274),
+            result(r"Music\Another Artist\Ho perso le parole.mp3", 320, 274),
         ]
         recording = {**self.record, "title": "Ho perso le parole", "artist": "Ligabue", "duration": 274}
-        with patch.object(self.peer, "run", side_effect=[
-            subprocess.CompletedProcess([], 0, "[]"),
-            subprocess.CompletedProcess([], 0, json.dumps(peers)),
-        ]) as run:
-            response = request(self.peer, "search", recording=recording)
-        self.assertEqual([call.args[0] for call in run.call_args_list],
-                         ["ligabue ho perso le parole", "ho perso le parole"])
+        with patch.object(self.peer, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(peers))) as run:
+            response = request(self.peer, "search", recording={**recording, "search_query": "Ho Perso Le Parole LIGABUE"})
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], "ho perso le parole ligabue")
         matches = response["candidates"]
         self.assertEqual(len(matches), 3)
         self.assertEqual(matches[0]["label"], "06-ho_perso_le_parole.mp3")
@@ -127,7 +125,7 @@ class AcquisitionTests(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertEqual([match["label"] for match in response["candidates"]], ["Song.mp3"])
 
-    def test_sockseek_title_fallback_shares_the_search_budget(self):
+    def test_sockseek_simpler_title_and_artist_share_the_search_budget(self):
         code = module("sockseek", "session")
         now = 100
         limits = []
@@ -153,7 +151,7 @@ class AcquisitionTests(unittest.TestCase):
         with patch.object(code.time, "monotonic", side_effect=lambda: now), patch.object(
                 code, "has_container_init", return_value=True), patch.object(
                 code.Session, "ensure", side_effect=connect), patch.object(subprocess, "run", side_effect=finish):
-            response = request(self.peer, "search", recording=self.record)
+            response = request(self.peer, "search", recording={**self.record, "search_query": "song studio version artist"})
 
         self.assertTrue(response["ok"])
         self.assertEqual([match["label"] for match in response["candidates"]], ["Song.mp3"])
@@ -164,10 +162,10 @@ class AcquisitionTests(unittest.TestCase):
     def test_sockseek_returns_initial_candidates_if_too_little_time_remains_to_broaden(self):
         code = module("sockseek", "provider")
         peers = [{"User": {"Username": "fixture-peer"},
-                  "File": {"Filename": "Song.mp3", "Bitrate": 320}}]
+                  "File": {"Filename": "Artist/Song.mp3", "Bitrate": 128}}]
         with patch.object(code.time, "monotonic", side_effect=[100, 100, 123]), patch.object(
                 self.peer, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(peers))) as client:
-            response = request(self.peer, "search", recording=self.record)
+            response = request(self.peer, "search", recording={**self.record, "search_query": "song studio version artist"})
 
         client.assert_called_once()
         self.assertTrue(response["ok"])
@@ -187,7 +185,7 @@ class AcquisitionTests(unittest.TestCase):
         ]) as run:
             response = request(self.peer, "search", recording=recording)
         self.assertEqual([call.args[0] for call in run.call_args_list],
-                         ["artist song live 2014 10 24 fixture hall", "song"])
+                         ["song live 2014 10 24 fixture hall artist", "song artist"])
         self.assertEqual([(match["label"], match["recommended"]) for match in response["candidates"]],
                          [("Song (Live).flac", True), ("Song.mp3", False)])
 
@@ -202,7 +200,7 @@ class AcquisitionTests(unittest.TestCase):
         with patch.object(self.peer, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(peers))) as run:
             result = request(self.peer, "search", recording=recording)
         run.assert_called_once()
-        self.assertEqual(run.call_args.args[0], "main artist track")
+        self.assertEqual(run.call_args.args[0], "track main artist")
         self.assertEqual(result["candidates"][0]["label"], names[0])
         self.assertEqual([row["recommended"] for row in result["candidates"]], [True, False, False, False])
 
@@ -233,7 +231,7 @@ class AcquisitionTests(unittest.TestCase):
     def test_sockseek_preserves_written_letters_in_the_network_query(self):
         with patch.object(self.peer, "run", return_value=subprocess.CompletedProcess([], 0, "[]")) as run:
             request(self.peer, "search", recording={**self.record, "artist": "Niño", "title": "ガラス"})
-        self.assertEqual([call.args[0] for call in run.call_args_list], ["niño ガラス", "ガラス"])
+        self.assertEqual([call.args[0] for call in run.call_args_list], ["ガラス niño"])
 
     def test_catalog_preserves_existing_file_and_cleans_up_after_close_failure(self):
         path = self.root / "pick.mp3"

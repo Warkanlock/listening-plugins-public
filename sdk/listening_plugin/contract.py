@@ -26,6 +26,7 @@ class Recording:
     album: str = ""
     duration: float = 0
     version: str = ""
+    search_query: str = ""
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class Candidate:
     duration: Optional[int] = None
     bitrate: Optional[int] = None
     recommended: Optional[bool] = None
+    identity_match: Optional[bool] = None
 
 
 class ReadyPlugin(Protocol):
