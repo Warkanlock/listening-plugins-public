@@ -77,7 +77,11 @@ def ranked_candidates(groups, formats, preferred, recording, source):
         if title_score < .65:
             continue
         context = words("/".join(path.parts))
-        artist_score = artist_similarity(main_artist, context)
+        basename = f" {name} "
+        song = f" {title} "
+        credit = basename.replace(song, " ", 1) if song in basename else ""
+        artist_context = words("/".join(path.parent.parts)) + credit
+        artist_score = artist_similarity(main_artist, artist_context)
         if main_artist and artist_score < .86:
             continue
         suffix_words = (" " + name + " ").replace(" " + full_title + " ", " ", 1)

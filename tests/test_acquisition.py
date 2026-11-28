@@ -91,6 +91,15 @@ class AcquisitionTests(unittest.TestCase):
         self.assertTrue(live["candidates"][0]["recommended"])
         self.assertIn("(Live)", live["candidates"][0]["label"])
 
+    def test_song_title_does_not_count_as_artist_evidence(self):
+        recording = {**self.record, "title": "Daft Punk Is Playing at My House", "artist": "Daft Punk"}
+        peers = [{"User": {"Username": "fixture-peer"}, "File": {"Filename": "LCD Soundsystem/" + name}}
+                 for name in ("Daft Punk Is Playing at My House.mp3", "Daft Punk Is Playng at My House.mp3")]
+        with patch.object(self.peer, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(peers))):
+            result = request(self.peer, "search", recording=recording)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["candidates"], [])
+
     def test_sockseek_publishes_byte_progress_while_the_transfer_is_open(self):
         progress = module("sockseek", "progress")
         observed = threading.Event()
