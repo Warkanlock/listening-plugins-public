@@ -6,7 +6,7 @@
 
 ## Install a plugin
 
-On a Linux Docker host, give the Listening engine manager a verified copy of the publisher's public signing key. For a public release, point the manager at this repository and pin the desired release tag. For a private release, download its signed catalog files using your GitHub session and give the manager the local catalog path. If the images are private too, sign Docker in to the image registry as the host user running the manager. Open **Settings → Extensions**, install the plugin, enter the settings it requests, then test and enable it.
+On a Linux Docker host, give the Listening engine manager a verified copy of the publisher's public signing key. For a public release, point the manager at this repository and pin a signed catalog tag. Confirm that it lists the exact server version returned by `listening --version` and your host architecture. For a private release, download its signed catalog files using your GitHub session and give the manager the local catalog path. If the images are private too, sign Docker in to the image registry as the host user running the manager. Open **Settings → Extensions**, install the plugin, enter the settings it requests, then test and enable it.
 
 [Engine manager setup](https://github.com/Warkanlock/listening-public/blob/main/docs/download-engines.md) · [Plugin protocol](https://github.com/Warkanlock/listening-public/blob/main/examples/engines/README.md)
 
@@ -21,7 +21,7 @@ For an existing Sockseek installation, the plugin also reads the operator's exis
 
 ## Share files with Sockseek
 
-Sockseek 1.0.12 requires Listening 2.0.4 and its engine manager. Keep older managers pinned to their previous signed catalog. Give the new manager a dedicated sharing root on the Docker host. Keep its files under your control, and include only files you have permission to distribute. Sockseek rejects symbolic links and special files at startup. While running, it skips links and opens audio through directory descriptors confined to the selected folder.
+To share with Sockseek, select a signed catalog that lists your server version and includes Sockseek's `share` capability. Use a host manager with sharing controls and Docker support for non-recursive bind mounts. Give the new manager a dedicated sharing root on the Docker host. Keep its files under your control, and include only files you have permission to distribute. Sockseek rejects symbolic links and special files at startup. While running, it skips links and opens audio through directory descriptors confined to the selected folder.
 
 In **Settings → Extensions**, open **Sockseek** and enter a separate sharing account. Save the settings, select a folder under the sharing root, and select **Start sharing**. Nicotine+ runs in the extension and reads the chosen folder. Restart sharing to rescan the folder or apply account changes. Some peers may be unreachable if neither side accepts incoming connections.
 
@@ -75,9 +75,10 @@ Generate the room’s catalog from the manifests and the immutable images. Suppl
 ```sh
 python3 tools/plugins.py catalog --image example-catalog/amd64=ghcr.io/OWNER/catalog@sha256:DIGEST > catalog.json
 openssl dgst -sha256 -sign /private/path/plugin-signing.pem -out catalog.sig catalog.json
+openssl dgst -sha256 -verify publisher.pub.pem -signature catalog.sig catalog.json
 ```
 
-Attach `catalog.json` and `catalog.sig` to the release and distribute the verified public signing key. Retain the previous digest in the registry so the room can roll back. Update and rollback preserve settings in the room’s credentials directory.
+Sign updated metadata with the publisher key already trusted by installed managers. Verify the signature against the trusted public key. Before the core release switches, check that the proposed catalog lists its server version for each supported architecture. Attach `catalog.json` and `catalog.sig` to the release and distribute the verified public signing key. Retain the previous digest in the registry so the room can roll back. Update and rollback preserve settings in the room’s credentials directory.
 
 The wrappers are MIT licensed. The Sockseek image redistributes the unmodified Sockseek v3.0.6 binary under AGPL-3.0 and installs the upstream license at `/usr/share/licenses/sockseek/LICENSE`. Include the corresponding source and license links alongside the image digest in release notes. [Pinned source](https://github.com/fiso64/sockseek/archive/refs/tags/v3.0.6.tar.gz) · [Upstream license](plugins/sockseek/build/licenses/Sockseek-AGPL-3.0.txt) · [MIT license](LICENSE)
 
